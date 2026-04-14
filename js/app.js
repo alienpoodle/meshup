@@ -1,7 +1,9 @@
 const imageInput = document.getElementById('image-input');
 const gridSizeInput = document.getElementById('grid-size');
+const colorLimitInput = document.getElementById('color-limit');
 const meshTypeInput = document.getElementById('mesh-type');
 const widthValLabel = document.getElementById('width-val');
+const colorLimitValLabel = document.getElementById('color-limit-val');
 const canvas = document.getElementById('display-canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const emptyState = document.getElementById('empty-state');
@@ -16,6 +18,7 @@ let originalImage = null;
 // Initialize
 imageInput.addEventListener('change', handleImageUpload);
 gridSizeInput.addEventListener('input', updateProject);
+colorLimitInput.addEventListener('input', updateProject);
 meshTypeInput.addEventListener('change', updateProject);
 downloadBtn.addEventListener('click', downloadPattern);
 
@@ -42,6 +45,9 @@ function updateProject() {
     const stitchWidth = parseInt(gridSizeInput.value);
     widthValLabel.textContent = stitchWidth;
 
+    const maxColors = parseInt(colorLimitInput.value);
+    colorLimitValLabel.textContent = maxColors;
+
     const aspectRatio = originalImage.height / originalImage.width;
     const stitchHeight = Math.round(stitchWidth * aspectRatio);
 
@@ -53,10 +59,10 @@ function updateProject() {
     const physHeight = (stitchHeight / meshCount).toFixed(1);
     statInches.textContent = `${physWidth}" x ${physHeight}"`;
 
-    renderPattern(stitchWidth, stitchHeight);
+    renderPattern(stitchWidth, stitchHeight, maxColors);
 }
 
-function renderPattern(sw, sh) {
+function renderPattern(sw, sh, maxColors) {
     // We use a temporary canvas to downsample the image
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -66,9 +72,11 @@ function renderPattern(sw, sh) {
     // Draw image downsampled
     tempCtx.drawImage(originalImage, 0, 0, sw, sh);
     const imageData = tempCtx.getImageData(0, 0, sw, sh);
+    const { palette, imageData: quantizedData } = quantizeImageData(imageData, maxColors);
+    tempCtx.putImageData(quantizedData, 0, 0);
 
     // Scale display canvas
-    const scale = Math.floor(800 / sw); // Scale factor for viewing
+    const scale = Math.max(1, Math.floor(800 / sw)); // Scale factor for viewing
     canvas.width = sw * scale;
     canvas.height = sh * scale;
 
@@ -80,7 +88,7 @@ function renderPattern(sw, sh) {
     drawGrid(sw, sh, scale);
 
     // Extract Palette
-    generatePalette(imageData.data);
+    generatePalette(palette);
 }
 
 function drawGrid(sw, sh, scale) {
@@ -110,30 +118,16 @@ function drawGrid(sw, sh, scale) {
     }
 }
 
-function generatePalette(data) {
-    const colors = new Set();
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        // Quantize colors slightly to avoid too many variations
-        const q = 16;
-        const qr = Math.round(r / q) * q;
-        const qg = Math.round(g / q) * q;
-        const qb = Math.round(b / q) * q;
-        colors.add(`rgb(${qr},${qg},${qb})`);
-    }
-
+function generatePalette(palette) {
     paletteGrid.innerHTML = '';
-    const colorArray = Array.from(colors).slice(0, 24); // Limit to top 24 for demo
-    
-    colorArray.forEach(color => {
+
+    palette.forEach(color => {
         const chip = document.createElement('div');
         chip.className = 'color-chip';
         
         const swatch = document.createElement('div');
         swatch.className = 'chip-swatch';
-        swatch.style.backgroundColor = color;
+        swatch.style.backgroundColor = `rgb(${color.r},${color.g},${color.b})`;
         
         const hex = document.createElement('span');
         hex.className = 'chip-hex';
@@ -144,13 +138,74 @@ function generatePalette(data) {
         paletteGrid.appendChild(chip);
     });
 
-    colorCountLabel.textContent = `${colorArray.length} unique yarn colors`;
+    colorCountLabel.textContent = `${palette.length} yarn colors used`;
+}
+
+function quantizeImageData(imageData, maxColors) {
+    const histogram = new Map();
+    const q = 16;
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const qr = Math.round(data[i] / q) * q;
+        const qg = Math.round(data[i + 1] / q) * q;
+        const qb = Math.round(data[i + 2] / q) * q;
+        const key = `${qr},${qg},${qb}`;
+        histogram.set(key, (histogram.get(key) || 0) + 1);
+    }
+
+    const sorted = Array.from(histogram.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, maxColors)
+        .map(([key]) => {
+            const [r, g, b] = key.split(',').map(Number);
+            return { r, g, b };
+        });
+
+    const quantizedData = new Uint8ClampedArray(data.length);
+    for (let i = 0; i < data.length; i += 4) {
+        const best = getNearestPaletteColor(data[i], data[i + 1], data[i + 2], sorted);
+        quantizedData[i] = best.r;
+        quantizedData[i + 1] = best.g;
+        quantizedData[i + 2] = best.b;
+        quantizedData[i + 3] = data[i + 3];
+    }
+
+    return {
+        palette: sorted,
+        imageData: new ImageData(quantizedData, imageData.width, imageData.height)
+    };
+}
+
+function getNearestPaletteColor(r, g, b, palette) {
+    let best = palette[0] || { r, g, b };
+    let bestDistance = Number.MAX_VALUE;
+
+    for (const color of palette) {
+        const dr = r - color.r;
+        const dg = g - color.g;
+        const db = b - color.b;
+        const distance = dr * dr + dg * dg + db * db;
+        if (distance < bestDistance) {
+            best = color;
+            bestDistance = distance;
+        }
+    }
+
+    return best;
 }
 
 function rgbToHex(rgb) {
-    const parts = rgb.match(/\d+/g);
-    return "#" + parts.map(x => {
-        const hex = parseInt(x).toString(16);
+    if (typeof rgb === 'string') {
+        const parts = rgb.match(/\d+/g);
+        return "#" + parts.map(x => {
+            const hex = parseInt(x).toString(16);
+            return hex.length === 1 ? "0" + hex : hex;
+        }).join("").toUpperCase();
+    }
+
+    return "#" + [rgb.r, rgb.g, rgb.b].map(value => {
+        const hex = value.toString(16);
         return hex.length === 1 ? "0" + hex : hex;
     }).join("").toUpperCase();
 }
