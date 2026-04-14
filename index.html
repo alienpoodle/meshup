@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeshUp | Image to Plastic Canvas</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Lucide Icons for a professional look -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i data-lucide="grid-3x3"></i>
+                <h1>Mesh<span>Up</span></h1>
+            </div>
+
+            <section class="control-group">
+                <h3><i data-lucide="upload"></i> Source Image</h3>
+                <div class="upload-area" id="drop-zone">
+                    <input type="file" id="image-input" accept="image/*" hidden>
+                    <label for="image-input" class="upload-label">
+                        <i data-lucide="image-plus"></i>
+                        <span>Click to upload</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="control-group">
+                <h3><i data-lucide="settings-2"></i> Grid Settings</h3>
+                
+                <div class="setting">
+                    <div class="label-row">
+                        <label>Stitch Width</label>
+                        <span id="width-val">50</span>
+                    </div>
+                    <input type="range" id="grid-size" min="10" max="150" value="50">
+                </div>
+
+                <div class="setting">
+                    <label>Mesh Count (Holes Per Inch)</label>
+                    <select id="mesh-type">
+                        <option value="7">7 Count (Standard)</option>
+                        <option value="10">10 Count (Fine)</option>
+                        <option value="14">14 Count (Ultra Fine)</option>
+                    </select>
+                </div>
+            </section>
+
+            <section class="control-group stats-panel">
+                <h3><i data-lucide="info"></i> Project Specs</h3>
+                <div class="stat-item">
+                    <span>Stitch Count:</span>
+                    <strong id="stat-stitches">50 x 50</strong>
+                </div>
+                <div class="stat-item">
+                    <span>Physical Size:</span>
+                    <strong id="stat-inches">7.1" x 7.1"</strong>
+                </div>
+            </section>
+
+            <button id="download-btn" class="primary-btn">
+                <i data-lucide="download"></i> Export Pattern
+            </button>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <div class="canvas-container" id="canvas-wrapper">
+                <canvas id="display-canvas"></canvas>
+                <div id="empty-state" class="empty-state">
+                    <i data-lucide="mouse-pointer-2"></i>
+                    <p>Upload an image to generate your stitching grid</p>
+                </div>
+            </div>
+
+            <section class="palette-area">
+                <div class="palette-header">
+                    <h3><i data-lucide="palette"></i> Yarn Palette</h3>
+                    <span id="color-count">0 colors detected</span>
+                </div>
+                <div class="palette-grid" id="color-palette">
+                    
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
