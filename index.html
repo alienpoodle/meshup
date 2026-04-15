@@ -55,11 +55,20 @@
 
                         <div class="setting">
                             <div class="label-row">
-                                <label>Yarn Colors</label>
+                                <label>Max Colors</label>
                                 <span id="color-limit-val">12</span>
                             </div>
-                            <input type="range" id="color-limit" min="2" max="24" value="12">
-                            <p class="helper-text">Lower color counts make cross stitching faster and simpler.</p>
+                            <input type="range" id="color-limit" min="2" max="32" value="12">
+                            <p class="helper-text">Reduce yarn variety by clustering similar tones for a cleaner physical project.</p>
+                        </div>
+
+                        <div class="setting">
+                            <div class="label-row">
+                                <label>Sharpness</label>
+                                <span id="sharpness-val">70</span>
+                            </div>
+                            <input type="range" id="sharpness" min="0" max="100" value="70">
+                            <p class="helper-text">Higher sharpness preserves crisp stitch edges during downsampling.</p>
                         </div>
 
                         <div class="setting">
@@ -69,6 +78,30 @@
                                 <option value="10">10 Count (Fine)</option>
                                 <option value="14">14 Count (Ultra Fine)</option>
                             </select>
+                        </div>
+
+                        <div class="setting">
+                            <div class="label-row">
+                                <label>Show Grid</label>
+                                <span id="grid-toggle-label">On</span>
+                            </div>
+                            <button id="toggle-grid-btn" class="secondary-btn" type="button">Toggle Grid</button>
+                        </div>
+
+                        <div class="setting">
+                            <div class="label-row">
+                                <label>Grid Contrast</label>
+                                <span id="grid-contrast-val">60</span>
+                            </div>
+                            <input type="range" id="grid-contrast" min="10" max="100" value="60">
+                        </div>
+
+                        <div class="setting">
+                            <div class="label-row">
+                                <label>Printable Mode</label>
+                                <span id="printable-mode-label">Off</span>
+                            </div>
+                            <button id="toggle-printable-btn" class="secondary-btn" type="button">Preview Symbols</button>
                         </div>
                     </section>
 
@@ -81,6 +114,10 @@
                         <div class="stat-item">
                             <span>Physical Size:</span>
                             <strong id="stat-inches">7.1" x 7.1"</strong>
+                        </div>
+                        <div class="stat-item">
+                            <span>Sheet Fit (7-count):</span>
+                            <strong id="sheet-fit-status">Within 10.5" x 13.5"</strong>
                         </div>
                     </section>
                 </div>
@@ -147,7 +184,7 @@
             </div>
 
             <button id="download-btn" class="primary-btn">
-                <span>⬇️</span> Export Pattern
+                <span>⬇️</span> Export Printable Sheet
             </button>
         </aside>
 
@@ -156,6 +193,12 @@
             <div class="canvas-container" id="canvas-wrapper">
                 <canvas id="display-canvas"></canvas>
                 <div id="eraser-cursor" class="eraser-cursor" aria-hidden="true"></div>
+                <div id="zoom-controls" class="zoom-controls" role="toolbar" aria-label="Zoom controls">
+                    <button id="zoom-out-btn" class="zoom-btn" type="button" title="Zoom out">−</button>
+                    <span id="zoom-label">100%</span>
+                    <button id="zoom-in-btn" class="zoom-btn" type="button" title="Zoom in">+</button>
+                    <button id="zoom-reset-btn" class="zoom-btn" type="button" title="Reset zoom" style="width:auto;padding:0 6px;font-size:0.7rem;">Reset</button>
+                </div>
                 <div id="empty-state" class="empty-state">
                     <span>🖱️</span>
                     <p>Upload an image to generate your stitching grid</p>

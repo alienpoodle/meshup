@@ -5,9 +5,17 @@ const patternMenu = document.getElementById('pattern-menu');
 const imageEditMenu = document.getElementById('image-edit-menu');
 const gridSizeInput = document.getElementById('grid-size');
 const colorLimitInput = document.getElementById('color-limit');
+const sharpnessInput = document.getElementById('sharpness');
 const meshTypeInput = document.getElementById('mesh-type');
 const widthValLabel = document.getElementById('width-val');
 const colorLimitValLabel = document.getElementById('color-limit-val');
+const sharpnessValLabel = document.getElementById('sharpness-val');
+const gridToggleLabel = document.getElementById('grid-toggle-label');
+const gridContrastInput = document.getElementById('grid-contrast');
+const gridContrastValLabel = document.getElementById('grid-contrast-val');
+const printableModeLabel = document.getElementById('printable-mode-label');
+const toggleGridBtn = document.getElementById('toggle-grid-btn');
+const togglePrintableBtn = document.getElementById('toggle-printable-btn');
 const canvasWrapper = document.getElementById('canvas-wrapper');
 const canvas = document.getElementById('display-canvas');
 const eraserCursor = document.getElementById('eraser-cursor');
@@ -15,6 +23,7 @@ const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const emptyState = document.getElementById('empty-state');
 const statStitches = document.getElementById('stat-stitches');
 const statInches = document.getElementById('stat-inches');
+const sheetFitStatus = document.getElementById('sheet-fit-status');
 const paletteGrid = document.getElementById('color-palette');
 const colorCountLabel = document.getElementById('color-count');
 const downloadBtn = document.getElementById('download-btn');
@@ -36,16 +45,35 @@ const resetImageBtn = document.getElementById('reset-image-btn');
 
 let sourceCanvas = null;
 let sourceCtx = null;
+let originalSnapshotCanvas = null;
+
 let bgRemovalMode = false;
 let previewMask = null;
 let previewSeed = null;
 let pendingHoverPoint = null;
 let hoverPreviewQueued = false;
-let renderMeta = { sw: 0, sh: 0, scale: 1 };
+
 let eraserMode = false;
 let isErasing = false;
 let eraserBrushSize = 20;
-let originalSnapshotCanvas = null;
+
+let showGrid = true;
+let printableMode = false;
+let gridContrast = 60;
+let previewZoom = 1;
+
+const ZOOM_LEVELS = [0.5, 0.75, 1, 1.5, 2, 3];
+
+let lastPattern = null;
+
+const GRID_MINOR_BASE = 0.12;
+const GRID_MAJOR_BASE = 0.34;
+const GRID_SYMBOLS = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+    '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
+    '21', '22', '23', '24', '25', '26', '27', '28', '29', '30',
+    '31', '32'
+];
 
 // Initialize
 imageInput.addEventListener('change', handleImageUpload);
@@ -53,8 +81,9 @@ patternMenuBtn.addEventListener('click', () => setSidebarMenu('pattern'));
 imageMenuBtn.addEventListener('click', () => setSidebarMenu('image'));
 gridSizeInput.addEventListener('input', updateProject);
 colorLimitInput.addEventListener('input', updateProject);
+sharpnessInput.addEventListener('input', updateProject);
 meshTypeInput.addEventListener('change', updateProject);
-downloadBtn.addEventListener('click', downloadPattern);
+downloadBtn.addEventListener('click', exportPrintablePatternSheet);
 removeBgBtn.addEventListener('click', toggleBackgroundRemovalMode);
 bgThresholdInput.addEventListener('input', handleThresholdChange);
 applyBgColorBtn.addEventListener('click', applyBackgroundColorChange);
@@ -65,6 +94,54 @@ rotateRightBtn.addEventListener('click', () => rotateSourceCanvas(90));
 flipHorizontalBtn.addEventListener('click', () => flipSourceCanvas('horizontal'));
 flipVerticalBtn.addEventListener('click', () => flipSourceCanvas('vertical'));
 resetImageBtn.addEventListener('click', resetSourceImage);
+toggleGridBtn.addEventListener('click', () => {
+    showGrid = !showGrid;
+    syncPatternSettingsUI();
+    updateProject();
+});
+togglePrintableBtn.addEventListener('click', () => {
+    printableMode = !printableMode;
+    syncPatternSettingsUI();
+    updateProject();
+});
+
+document.getElementById('zoom-in-btn').addEventListener('click', () => {
+    const idx = ZOOM_LEVELS.indexOf(previewZoom);
+    if (idx < ZOOM_LEVELS.length - 1) {
+        previewZoom = ZOOM_LEVELS[idx + 1];
+        updateProject();
+    }
+});
+
+document.getElementById('zoom-out-btn').addEventListener('click', () => {
+    const idx = ZOOM_LEVELS.indexOf(previewZoom);
+    if (idx > 0) {
+        previewZoom = ZOOM_LEVELS[idx - 1];
+        updateProject();
+    }
+});
+
+document.getElementById('zoom-reset-btn').addEventListener('click', () => {
+    previewZoom = 1;
+    updateProject();
+});
+
+canvasWrapper.addEventListener('wheel', (e) => {
+    if (!sourceCanvas) return;
+    e.preventDefault();
+    const dir = e.deltaY < 0 ? 1 : -1;
+    const idx = ZOOM_LEVELS.indexOf(previewZoom);
+    const next = idx + dir;
+    if (next >= 0 && next < ZOOM_LEVELS.length) {
+        previewZoom = ZOOM_LEVELS[next];
+        updateProject();
+    }
+}, { passive: false });
+gridContrastInput.addEventListener('input', () => {
+    gridContrast = parseInt(gridContrastInput.value, 10);
+    syncPatternSettingsUI();
+    updateProject();
+});
 canvas.addEventListener('mousemove', handleCanvasHover);
 canvas.addEventListener('click', confirmBackgroundRemoval);
 canvas.addEventListener('mouseleave', clearHoverPreview);
@@ -75,9 +152,10 @@ canvas.addEventListener('mouseup', stopErasing);
 canvas.addEventListener('mouseleave', stopErasing);
 canvas.addEventListener('mouseleave', hideEraserCursor);
 
+setSidebarMenu('pattern');
+syncPatternSettingsUI();
 bgThresholdValLabel.textContent = bgThresholdInput.value;
 eraserSizeValLabel.textContent = eraserSizeInput.value;
-setSidebarMenu('pattern');
 
 function setSidebarMenu(menuName) {
     const showPattern = menuName === 'pattern';
@@ -92,28 +170,48 @@ function setSidebarMenu(menuName) {
     imageEditMenu.setAttribute('aria-hidden', showPattern ? 'true' : 'false');
 }
 
+function syncPatternSettingsUI() {
+    widthValLabel.textContent = gridSizeInput.value;
+    colorLimitValLabel.textContent = colorLimitInput.value;
+    sharpnessValLabel.textContent = sharpnessInput.value;
+    gridContrastValLabel.textContent = gridContrastInput.value;
+    gridToggleLabel.textContent = showGrid ? 'On' : 'Off';
+    printableModeLabel.textContent = printableMode ? 'On' : 'Off';
+    toggleGridBtn.classList.toggle('soft-active', showGrid);
+    togglePrintableBtn.classList.toggle('soft-active', printableMode);
+}
+
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
+    const isPng = file.type === 'image/png';
+    if (!isPng) {
+        bgStatus.textContent = 'Tip: PNG files produce the cleanest stitch edges and avoid compression artifacts.';
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
         const uploadedImage = new Image();
+        uploadedImage.decoding = 'sync';
         uploadedImage.onload = () => {
             emptyState.style.display = 'none';
             canvas.style.display = 'block';
+
             sourceCanvas = document.createElement('canvas');
             sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
             sourceCanvas.width = uploadedImage.width;
             sourceCanvas.height = uploadedImage.height;
+            sourceCtx.imageSmoothingEnabled = false;
             sourceCtx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
             sourceCtx.drawImage(uploadedImage, 0, 0);
+
             originalSnapshotCanvas = document.createElement('canvas');
             originalSnapshotCanvas.width = uploadedImage.width;
             originalSnapshotCanvas.height = uploadedImage.height;
             originalSnapshotCanvas.getContext('2d').drawImage(uploadedImage, 0, 0);
-            clearHoverPreview();
-            setBackgroundMode(false);
+
+            disableEditModes();
             updateProject();
         };
         uploadedImage.src = event.target.result;
@@ -122,67 +220,461 @@ function handleImageUpload(e) {
 }
 
 function updateProject() {
+    syncPatternSettingsUI();
     if (!sourceCanvas) return;
 
-    const stitchWidth = parseInt(gridSizeInput.value);
-    widthValLabel.textContent = stitchWidth;
-
-    const maxColors = parseInt(colorLimitInput.value);
-    colorLimitValLabel.textContent = maxColors;
+    const stitchWidth = parseInt(gridSizeInput.value, 10);
+    const maxColors = parseInt(colorLimitInput.value, 10);
+    const sharpness = parseInt(sharpnessInput.value, 10);
 
     const aspectRatio = sourceCanvas.height / sourceCanvas.width;
-    const stitchHeight = Math.round(stitchWidth * aspectRatio);
+    const stitchHeight = Math.max(1, Math.round(stitchWidth * aspectRatio));
 
-    // Update Stats
     statStitches.textContent = `${stitchWidth} x ${stitchHeight}`;
-    
-    const meshCount = parseInt(meshTypeInput.value);
-    const physWidth = (stitchWidth / meshCount).toFixed(1);
-    const physHeight = (stitchHeight / meshCount).toFixed(1);
-    statInches.textContent = `${physWidth}" x ${physHeight}"`;
 
-    renderPattern(stitchWidth, stitchHeight, maxColors);
+    const meshCount = parseInt(meshTypeInput.value, 10);
+    const physWidth = stitchWidth / meshCount;
+    const physHeight = stitchHeight / meshCount;
+    statInches.textContent = `${physWidth.toFixed(1)}" x ${physHeight.toFixed(1)}"`;
+
+    updateSheetFitStatus(meshCount, physWidth, physHeight);
+    renderPattern(stitchWidth, stitchHeight, maxColors, sharpness, meshCount, physWidth, physHeight);
 }
 
-function renderPattern(sw, sh, maxColors) {
-    // We use a temporary canvas to downsample the image
+function updateSheetFitStatus(meshCount, physWidth, physHeight) {
+    const sheetW = 10.5;
+    const sheetH = 13.5;
+
+    if (meshCount !== 7) {
+        sheetFitStatus.textContent = 'Check applies to 7-count only';
+        sheetFitStatus.classList.remove('stat-warning');
+        return;
+    }
+
+    const fitsNormal = physWidth <= sheetW && physHeight <= sheetH;
+    const fitsRotated = physWidth <= sheetH && physHeight <= sheetW;
+    const fits = fitsNormal || fitsRotated;
+
+    if (fits) {
+        sheetFitStatus.textContent = 'Within 10.5" x 13.5"';
+        sheetFitStatus.classList.remove('stat-warning');
+    } else {
+        sheetFitStatus.textContent = 'Exceeds 10.5" x 13.5" sheet';
+        sheetFitStatus.classList.add('stat-warning');
+    }
+}
+
+function renderPattern(sw, sh, maxColors, sharpness, meshCount, physWidth, physHeight) {
+    const sampledImage = downsampleWithSharpness(sourceCanvas, sw, sh, sharpness / 100);
+    const quantized = quantizeKMeans(sampledImage, maxColors);
+
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = sw;
     tempCanvas.height = sh;
+    tempCtx.imageSmoothingEnabled = false;
+    tempCtx.putImageData(quantized.imageData, 0, 0);
 
-    // Draw image downsampled
-    tempCtx.drawImage(sourceCanvas, 0, 0, sw, sh);
-    const imageData = tempCtx.getImageData(0, 0, sw, sh);
-    const { palette, imageData: quantizedData } = quantizeImageData(imageData, maxColors);
-    tempCtx.putImageData(quantizedData, 0, 0);
-
-    // Scale display canvas
-    const scale = Math.max(1, Math.floor(800 / sw)); // Scale factor for viewing
+    const baseScale = Math.max(1, Math.floor(800 / sw));
+    const scale = Math.max(1, Math.round(baseScale * previewZoom));
     canvas.width = sw * scale;
     canvas.height = sh * scale;
-    renderMeta = { sw, sh, scale };
 
-    // Clear and draw pixelated blocks
+    const zoomControls = document.getElementById('zoom-controls');
+    zoomControls.classList.toggle('visible', true);
+    document.getElementById('zoom-label').textContent = `${Math.round(previewZoom * 100)}%`;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(tempCanvas, 0, 0, sw, sh, 0, 0, canvas.width, canvas.height);
 
-    // Draw Grid Overlay
-    drawGrid(sw, sh, scale);
+    if (printableMode) {
+        drawSymbolOverlay(quantized.indexMap, quantized.palette, sw, sh, scale);
+    }
 
-    // Show hover preview while background-select mode is active.
+    if (showGrid) {
+        drawGrid(sw, sh, scale, gridContrast);
+    }
+
     if (bgRemovalMode && previewMask) {
         drawRemovalPreviewOverlay(sw, sh, scale);
     }
 
-    // Extract Palette
-    generatePalette(palette);
+    generatePalette(quantized.palette);
+
+    lastPattern = {
+        sw,
+        sh,
+        meshCount,
+        physWidth,
+        physHeight,
+        palette: quantized.palette,
+        indexMap: quantized.indexMap,
+        stitchWidth: sw,
+        stitchHeight: sh
+    };
+}
+
+function downsampleWithSharpness(srcCanvas, outW, outH, sharpnessAmount) {
+    const srcW = srcCanvas.width;
+    const srcH = srcCanvas.height;
+    const srcData = sourceCtx.getImageData(0, 0, srcW, srcH).data;
+    const outData = new Uint8ClampedArray(outW * outH * 4);
+
+    for (let y = 0; y < outH; y += 1) {
+        const y0 = Math.floor((y * srcH) / outH);
+        const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * srcH) / outH));
+        const centerY = Math.min(srcH - 1, Math.floor(((y + 0.5) * srcH) / outH));
+
+        for (let x = 0; x < outW; x += 1) {
+            const x0 = Math.floor((x * srcW) / outW);
+            const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * srcW) / outW));
+            const centerX = Math.min(srcW - 1, Math.floor(((x + 0.5) * srcW) / outW));
+
+            let sumR = 0;
+            let sumG = 0;
+            let sumB = 0;
+            let sumA = 0;
+            let count = 0;
+
+            for (let sy = y0; sy < y1; sy += 1) {
+                for (let sx = x0; sx < x1; sx += 1) {
+                    const i = (sy * srcW + sx) * 4;
+                    sumR += srcData[i];
+                    sumG += srcData[i + 1];
+                    sumB += srcData[i + 2];
+                    sumA += srcData[i + 3];
+                    count += 1;
+                }
+            }
+
+            const avgR = sumR / count;
+            const avgG = sumG / count;
+            const avgB = sumB / count;
+            const avgA = sumA / count;
+
+            const ci = (centerY * srcW + centerX) * 4;
+            const centerR = srcData[ci];
+            const centerG = srcData[ci + 1];
+            const centerB = srcData[ci + 2];
+            const centerA = srcData[ci + 3];
+
+            const blend = sharpnessAmount;
+            const r = Math.round(avgR * (1 - blend) + centerR * blend);
+            const g = Math.round(avgG * (1 - blend) + centerG * blend);
+            const b = Math.round(avgB * (1 - blend) + centerB * blend);
+            const a = Math.round(avgA * (1 - blend) + centerA * blend);
+
+            const oi = (y * outW + x) * 4;
+            outData[oi] = r;
+            outData[oi + 1] = g;
+            outData[oi + 2] = b;
+            outData[oi + 3] = a;
+        }
+    }
+
+    return new ImageData(outData, outW, outH);
+}
+
+function quantizeKMeans(imageData, maxColors) {
+    const pixels = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+    const total = width * height;
+
+    const opaqueIdx = [];
+    for (let i = 0; i < total; i += 1) {
+        if (pixels[i * 4 + 3] > 0) opaqueIdx.push(i);
+    }
+
+    if (opaqueIdx.length === 0) {
+        return {
+            palette: [],
+            indexMap: new Int16Array(total).fill(-1),
+            imageData: new ImageData(new Uint8ClampedArray(pixels), width, height)
+        };
+    }
+
+    const k = Math.max(2, Math.min(maxColors, opaqueIdx.length));
+    const centroids = initializeCentroids(pixels, opaqueIdx, k);
+    const assignments = new Int16Array(total).fill(-1);
+
+    for (let iter = 0; iter < 8; iter += 1) {
+        const sums = Array.from({ length: k }, () => ({ r: 0, g: 0, b: 0, n: 0 }));
+
+        for (let i = 0; i < opaqueIdx.length; i += 1) {
+            const pxIdx = opaqueIdx[i];
+            const p = pxIdx * 4;
+            const r = pixels[p];
+            const g = pixels[p + 1];
+            const b = pixels[p + 2];
+
+            let best = 0;
+            let bestDist = Number.MAX_VALUE;
+
+            for (let c = 0; c < k; c += 1) {
+                const dr = r - centroids[c].r;
+                const dg = g - centroids[c].g;
+                const db = b - centroids[c].b;
+                const d = dr * dr + dg * dg + db * db;
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = c;
+                }
+            }
+
+            assignments[pxIdx] = best;
+            sums[best].r += r;
+            sums[best].g += g;
+            sums[best].b += b;
+            sums[best].n += 1;
+        }
+
+        for (let c = 0; c < k; c += 1) {
+            if (sums[c].n === 0) continue;
+            centroids[c].r = Math.round(sums[c].r / sums[c].n);
+            centroids[c].g = Math.round(sums[c].g / sums[c].n);
+            centroids[c].b = Math.round(sums[c].b / sums[c].n);
+        }
+    }
+
+    const out = new Uint8ClampedArray(pixels.length);
+    for (let i = 0; i < total; i += 1) {
+        const srcPos = i * 4;
+        if (pixels[srcPos + 3] === 0 || assignments[i] < 0) {
+            out[srcPos] = 0;
+            out[srcPos + 1] = 0;
+            out[srcPos + 2] = 0;
+            out[srcPos + 3] = 0;
+            continue;
+        }
+
+        const c = centroids[assignments[i]];
+        out[srcPos] = c.r;
+        out[srcPos + 1] = c.g;
+        out[srcPos + 2] = c.b;
+        out[srcPos + 3] = 255;
+    }
+
+    const palette = centroids.map((c) => ({ r: c.r, g: c.g, b: c.b }));
+
+    return {
+        palette,
+        indexMap: assignments,
+        imageData: new ImageData(out, width, height)
+    };
+}
+
+function initializeCentroids(pixels, opaqueIdx, k) {
+    const centroids = [];
+    const step = Math.max(1, Math.floor(opaqueIdx.length / k));
+
+    for (let i = 0; i < k; i += 1) {
+        const pxIdx = opaqueIdx[Math.min(opaqueIdx.length - 1, i * step)];
+        const p = pxIdx * 4;
+        centroids.push({ r: pixels[p], g: pixels[p + 1], b: pixels[p + 2] });
+    }
+
+    return centroids;
+}
+
+function drawSymbolOverlay(indexMap, palette, sw, sh, scale) {
+    if (!indexMap || !palette.length) return;
+
+    const fontSize = Math.max(8, Math.floor(scale * 0.65));
+    ctx.font = `${fontSize}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (let y = 0; y < sh; y += 1) {
+        for (let x = 0; x < sw; x += 1) {
+            const idx = y * sw + x;
+            const paletteIdx = indexMap[idx];
+            if (paletteIdx < 0) continue;
+
+            const color = palette[paletteIdx];
+            const luminance = (0.299 * color.r + 0.587 * color.g + 0.114 * color.b) / 255;
+            ctx.fillStyle = luminance > 0.5 ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.9)';
+
+            const symbol = GRID_SYMBOLS[paletteIdx] || String(paletteIdx + 1);
+            ctx.fillText(symbol, x * scale + scale / 2, y * scale + scale / 2);
+        }
+    }
+}
+
+function drawGrid(sw, sh, scale, contrastValue) {
+    const contrast = contrastValue / 100;
+    const minorAlpha = GRID_MINOR_BASE + contrast * 0.30;
+    const majorAlpha = GRID_MAJOR_BASE + contrast * 0.46;
+
+    ctx.fillStyle = `rgba(0, 0, 0, ${minorAlpha.toFixed(3)})`;
+    for (let x = 0; x <= sw; x += 1) {
+        if (x % 10 === 0) continue;
+        const gx = x * scale;
+        ctx.fillRect(gx, 0, 1, canvas.height);
+    }
+    for (let y = 0; y <= sh; y += 1) {
+        if (y % 10 === 0) continue;
+        const gy = y * scale;
+        ctx.fillRect(0, gy, canvas.width, 1);
+    }
+
+    ctx.fillStyle = `rgba(0, 0, 0, ${majorAlpha.toFixed(3)})`;
+    for (let x = 0; x <= sw; x += 10) {
+        const gx = x * scale;
+        ctx.fillRect(gx, 0, 2, canvas.height);
+    }
+    for (let y = 0; y <= sh; y += 10) {
+        const gy = y * scale;
+        ctx.fillRect(0, gy, canvas.width, 2);
+    }
+}
+
+function generatePalette(palette) {
+    paletteGrid.innerHTML = '';
+
+    palette.forEach((color, i) => {
+        const chip = document.createElement('div');
+        chip.className = 'color-chip';
+
+        const swatch = document.createElement('div');
+        swatch.className = 'chip-swatch';
+        swatch.style.backgroundColor = `rgb(${color.r},${color.g},${color.b})`;
+
+        const hex = document.createElement('span');
+        hex.className = 'chip-hex';
+        hex.textContent = `${i + 1}: ${rgbToHex(color)}`;
+
+        chip.appendChild(swatch);
+        chip.appendChild(hex);
+        paletteGrid.appendChild(chip);
+    });
+
+    colorCountLabel.textContent = `${palette.length} yarn colors used`;
+}
+
+function rgbToHex(rgb) {
+    return `#${[rgb.r, rgb.g, rgb.b]
+        .map((value) => {
+            const hex = value.toString(16);
+            return hex.length === 1 ? `0${hex}` : hex;
+        })
+        .join('')
+        .toUpperCase()}`;
+}
+
+function exportPrintablePatternSheet() {
+    if (!lastPattern || !lastPattern.palette.length) return;
+
+    const { sw, sh, palette, indexMap, meshCount, physWidth, physHeight } = lastPattern;
+
+    const keyRows = palette.length;
+    const pageWidth = Math.max(1200, sw * 16 + 420);
+    const pageHeight = Math.max(1450, sh * 16 + 280, 240 + keyRows * 34 + 300);
+
+    const outCanvas = document.createElement('canvas');
+    const outCtx = outCanvas.getContext('2d');
+    outCanvas.width = pageWidth;
+    outCanvas.height = pageHeight;
+
+    outCtx.fillStyle = '#ffffff';
+    outCtx.fillRect(0, 0, pageWidth, pageHeight);
+
+    outCtx.fillStyle = '#111827';
+    outCtx.font = 'bold 34px sans-serif';
+    outCtx.fillText('MeshUp Printable Pattern Sheet', 36, 56);
+
+    outCtx.font = '18px sans-serif';
+    outCtx.fillText(`Stitch Count: ${sw} x ${sh}`, 36, 92);
+    outCtx.fillText(`Mesh Count: ${meshCount}`, 36, 118);
+    outCtx.fillText(`Physical Size: ${physWidth.toFixed(1)}" x ${physHeight.toFixed(1)}"`, 36, 144);
+    outCtx.fillText(`Color Count: ${palette.length}`, 36, 170);
+
+    const gridX = 36;
+    const gridY = 210;
+    const maxGridWidth = pageWidth - 360;
+    const maxGridHeight = pageHeight - 280;
+    const cellSize = Math.max(6, Math.floor(Math.min(maxGridWidth / sw, maxGridHeight / sh)));
+
+    // White grid — numbers only, no cell color fill
+    outCtx.fillStyle = '#ffffff';
+    outCtx.fillRect(gridX, gridY, sw * cellSize, sh * cellSize);
+
+    outCtx.textAlign = 'center';
+    outCtx.textBaseline = 'middle';
+    outCtx.font = `bold ${Math.max(7, Math.floor(cellSize * 0.58))}px monospace`;
+    outCtx.fillStyle = '#111827';
+
+    for (let y = 0; y < sh; y += 1) {
+        for (let x = 0; x < sw; x += 1) {
+            const pIdx = indexMap[y * sw + x];
+            const cx = gridX + x * cellSize;
+            const cy = gridY + y * cellSize;
+
+            if (pIdx < 0) {
+                // Erased cell — light checkerboard to distinguish from blank
+                outCtx.fillStyle = (x + y) % 2 === 0 ? '#d1d5db' : '#f9fafb';
+                outCtx.fillRect(cx, cy, cellSize, cellSize);
+                outCtx.fillStyle = '#111827';
+                continue;
+            }
+
+            const symbol = GRID_SYMBOLS[pIdx] || String(pIdx + 1);
+            outCtx.fillText(symbol, cx + cellSize / 2, cy + cellSize / 2);
+        }
+    }
+
+    // Grid lines aligned to stitch boundaries
+    outCtx.fillStyle = 'rgba(0,0,0,0.16)';
+    for (let x = 0; x <= sw; x += 1) {
+        if (x % 10 === 0) continue;
+        outCtx.fillRect(gridX + x * cellSize, gridY, 1, sh * cellSize);
+    }
+    for (let y = 0; y <= sh; y += 1) {
+        if (y % 10 === 0) continue;
+        outCtx.fillRect(gridX, gridY + y * cellSize, sw * cellSize, 1);
+    }
+
+    outCtx.fillStyle = 'rgba(0,0,0,0.48)';
+    for (let x = 0; x <= sw; x += 10) {
+        outCtx.fillRect(gridX + x * cellSize, gridY, 2, sh * cellSize);
+    }
+    for (let y = 0; y <= sh; y += 10) {
+        outCtx.fillRect(gridX, gridY + y * cellSize, sw * cellSize, 2);
+    }
+
+    // Color key
+    const keyX = gridX + sw * cellSize + 36;
+    let keyY = gridY;
+
+    outCtx.fillStyle = '#111827';
+    outCtx.textAlign = 'left';
+    outCtx.textBaseline = 'alphabetic';
+    outCtx.font = 'bold 20px sans-serif';
+    outCtx.fillText('Numbered Color Key', keyX, keyY - 12);
+
+    outCtx.font = '16px sans-serif';
+    for (let i = 0; i < palette.length; i += 1) {
+        const color = palette[i];
+        outCtx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+        outCtx.fillRect(keyX, keyY + i * 30, 24, 20);
+        outCtx.strokeStyle = 'rgba(0,0,0,0.25)';
+        outCtx.strokeRect(keyX, keyY + i * 30, 24, 20);
+
+        outCtx.fillStyle = '#111827';
+        const symbol = GRID_SYMBOLS[i] || String(i + 1);
+        outCtx.fillText(`${symbol}  ${rgbToHex(color)}`, keyX + 34, keyY + i * 30 + 16);
+    }
+
+    const link = document.createElement('a');
+    link.download = 'meshup-printable-pattern.png';
+    link.href = outCanvas.toDataURL('image/png');
+    link.click();
 }
 
 function handleThresholdChange() {
     bgThresholdValLabel.textContent = bgThresholdInput.value;
-    if (!bgRemovalMode) return;
-    if (!previewSeed) return;
+    if (!bgRemovalMode || !previewSeed) return;
 
     previewMask = computeFloodMask(previewSeed.x, previewSeed.y, getThresholdValue());
     updateProject();
@@ -203,13 +695,10 @@ function setBackgroundMode(enabled) {
         bgStatus.textContent = 'Hover to preview what will be removed, then click to confirm.';
         eraserMode = false;
         eraserBtn.classList.remove('active');
+        hideEraserCursor();
     } else {
         bgStatus.textContent = 'Enable selection mode, hover to preview, then click to confirm.';
         clearHoverPreview();
-    }
-
-    if (enabled) {
-        hideEraserCursor();
     }
 }
 
@@ -236,9 +725,7 @@ function handleCanvasHover(event) {
         if (previewSeed) {
             const dx = point.x - previewSeed.x;
             const dy = point.y - previewSeed.y;
-            if (dx * dx + dy * dy < 36) {
-                return;
-            }
+            if (dx * dx + dy * dy < 36) return;
         }
 
         previewSeed = point;
@@ -268,9 +755,7 @@ function clearHoverPreview() {
     previewMask = null;
     previewSeed = null;
     pendingHoverPoint = null;
-    if (sourceCanvas) {
-        updateProject();
-    }
+    if (sourceCanvas) updateProject();
 }
 
 function mapCanvasToSourcePoint(event) {
@@ -294,10 +779,7 @@ function computeFloodMask(startX, startY, threshold) {
     const total = width * height;
 
     const startIndex = (startY * width + startX) * 4;
-    const targetA = data[startIndex + 3];
-    if (targetA === 0) {
-        return new Uint8Array(total);
-    }
+    if (data[startIndex + 3] === 0) return new Uint8Array(total);
 
     const targetR = data[startIndex];
     const targetG = data[startIndex + 1];
@@ -322,8 +804,7 @@ function computeFloodMask(startX, startY, threshold) {
         if (mask[pixelPos]) continue;
 
         const dataPos = pixelPos * 4;
-        const alpha = data[dataPos + 3];
-        if (alpha === 0) continue;
+        if (data[dataPos + 3] === 0) continue;
 
         const dr = data[dataPos] - targetR;
         const dg = data[dataPos + 1] - targetG;
@@ -367,14 +848,9 @@ function softenMaskEdges(mask, width, height) {
             if (!mask[idx]) continue;
 
             const neighbors =
-                mask[idx - 1] +
-                mask[idx + 1] +
-                mask[idx - width] +
-                mask[idx + width];
+                mask[idx - 1] + mask[idx + 1] + mask[idx - width] + mask[idx + width];
 
-            if (neighbors <= 1) {
-                softened[idx] = 0;
-            }
+            if (neighbors <= 1) softened[idx] = 0;
         }
     }
 
@@ -393,6 +869,72 @@ function applyMaskToSource(mask) {
     }
 
     sourceCtx.putImageData(imageData, 0, 0);
+}
+
+function drawRemovalPreviewOverlay(sw, sh, scale) {
+    if (!previewMask || !sourceCanvas) return;
+
+    ctx.fillStyle = 'rgba(255, 83, 112, 0.35)';
+
+    for (let y = 0; y < sh; y += 1) {
+        for (let x = 0; x < sw; x += 1) {
+            const srcX = Math.min(sourceCanvas.width - 1, Math.floor(((x + 0.5) / sw) * sourceCanvas.width));
+            const srcY = Math.min(sourceCanvas.height - 1, Math.floor(((y + 0.5) / sh) * sourceCanvas.height));
+            if (!previewMask[srcY * sourceCanvas.width + srcX]) continue;
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+    }
+
+    if (showGrid) {
+        drawGrid(sw, sh, scale, gridContrast);
+    }
+}
+
+function applyBackgroundColorChange() {
+    if (!sourceCanvas) return;
+
+    const newRGB = hexToRgb(bgColorPicker.value);
+    const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+    const data = imageData.data;
+
+    const colorFreq = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+        colorFreq.set(key, (colorFreq.get(key) || 0) + 1);
+    }
+    if (colorFreq.size === 0) return;
+
+    const mostCommonColor = Array.from(colorFreq.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    const [oldR, oldG, oldB] = mostCommonColor.split(',').map(Number);
+
+    const colorThreshold = 30;
+    for (let i = 0; i < data.length; i += 4) {
+        const dr = data[i] - oldR;
+        const dg = data[i + 1] - oldG;
+        const db = data[i + 2] - oldB;
+        const distance = Math.sqrt(dr * dr + dg * dg + db * db);
+
+        if (distance < colorThreshold) {
+            data[i] = newRGB.r;
+            data[i + 1] = newRGB.g;
+            data[i + 2] = newRGB.b;
+        }
+    }
+
+    sourceCtx.putImageData(imageData, 0, 0);
+    updateProject();
+}
+
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+        ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        }
+        : { r: 255, g: 255, b: 255 };
 }
 
 function rotateSourceCanvas(degrees) {
@@ -468,239 +1010,14 @@ function disableEditModes() {
     canvas.style.cursor = 'default';
 }
 
-function drawRemovalPreviewOverlay(sw, sh, scale) {
-    if (!previewMask || !sourceCanvas) return;
-
-    ctx.fillStyle = 'rgba(255, 83, 112, 0.35)';
-
-    for (let y = 0; y < sh; y += 1) {
-        for (let x = 0; x < sw; x += 1) {
-            const srcX = Math.min(sourceCanvas.width - 1, Math.floor(((x + 0.5) / sw) * sourceCanvas.width));
-            const srcY = Math.min(sourceCanvas.height - 1, Math.floor(((y + 0.5) / sh) * sourceCanvas.height));
-            if (!previewMask[srcY * sourceCanvas.width + srcX]) continue;
-
-            ctx.fillRect(x * scale, y * scale, scale, scale);
-        }
-    }
-
-    if (previewSeed) {
-        const markerX = Math.floor((previewSeed.x / sourceCanvas.width) * sw) * scale;
-        const markerY = Math.floor((previewSeed.y / sourceCanvas.height) * sh) * scale;
-        ctx.strokeStyle = 'rgba(255, 214, 10, 0.95)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(markerX + 1, markerY + 1, Math.max(4, scale - 2), Math.max(4, scale - 2));
-    }
-
-    drawGrid(sw, sh, scale);
-}
-
-function drawGrid(sw, sh, scale) {
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.lineWidth = 1;
-
-    // Vertical Lines
-    for (let x = 0; x <= sw; x++) {
-        // Every 10th line is darker for counting
-        ctx.strokeStyle = x % 10 === 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = x % 10 === 0 ? 2 : 1;
-        ctx.moveTo(x * scale, 0);
-        ctx.lineTo(x * scale, canvas.height);
-        ctx.stroke();
-        ctx.beginPath(); // Reset path for different styles
-    }
-
-    // Horizontal Lines
-    for (let y = 0; y <= sh; y++) {
-        ctx.strokeStyle = y % 10 === 0 ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.2)';
-        ctx.lineWidth = y % 10 === 0 ? 2 : 1;
-        ctx.moveTo(0, y * scale);
-        ctx.lineTo(canvas.width, y * scale);
-        ctx.stroke();
-        ctx.beginPath();
-    }
-}
-
-function generatePalette(palette) {
-    paletteGrid.innerHTML = '';
-
-    palette.forEach(color => {
-        const chip = document.createElement('div');
-        chip.className = 'color-chip';
-        
-        const swatch = document.createElement('div');
-        swatch.className = 'chip-swatch';
-        swatch.style.backgroundColor = `rgb(${color.r},${color.g},${color.b})`;
-        
-        const hex = document.createElement('span');
-        hex.className = 'chip-hex';
-        hex.textContent = rgbToHex(color);
-        
-        chip.appendChild(swatch);
-        chip.appendChild(hex);
-        paletteGrid.appendChild(chip);
-    });
-
-    colorCountLabel.textContent = `${palette.length} yarn colors used`;
-}
-
-function quantizeImageData(imageData, maxColors) {
-    const histogram = new Map();
-    const q = 16;
-    const data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] === 0) continue;
-        const qr = Math.round(data[i] / q) * q;
-        const qg = Math.round(data[i + 1] / q) * q;
-        const qb = Math.round(data[i + 2] / q) * q;
-        const key = `${qr},${qg},${qb}`;
-        histogram.set(key, (histogram.get(key) || 0) + 1);
-    }
-
-    const sorted = Array.from(histogram.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, maxColors)
-        .map(([key]) => {
-            const [r, g, b] = key.split(',').map(Number);
-            return { r, g, b };
-        });
-
-    const quantizedData = new Uint8ClampedArray(data.length);
-    for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] === 0) {
-            quantizedData[i] = 0;
-            quantizedData[i + 1] = 0;
-            quantizedData[i + 2] = 0;
-            quantizedData[i + 3] = 0;
-            continue;
-        }
-
-        const best = getNearestPaletteColor(data[i], data[i + 1], data[i + 2], sorted);
-        quantizedData[i] = best.r;
-        quantizedData[i + 1] = best.g;
-        quantizedData[i + 2] = best.b;
-        quantizedData[i + 3] = data[i + 3];
-    }
-
-    return {
-        palette: sorted,
-        imageData: new ImageData(quantizedData, imageData.width, imageData.height)
-    };
-}
-
-function getNearestPaletteColor(r, g, b, palette) {
-    let best = palette[0] || { r, g, b };
-    let bestDistance = Number.MAX_VALUE;
-
-    for (const color of palette) {
-        const dr = r - color.r;
-        const dg = g - color.g;
-        const db = b - color.b;
-        const distance = dr * dr + dg * dg + db * db;
-        if (distance < bestDistance) {
-            best = color;
-            bestDistance = distance;
-        }
-    }
-
-    return best;
-}
-
-function rgbToHex(rgb) {
-    if (typeof rgb === 'string') {
-        const parts = rgb.match(/\d+/g);
-        return "#" + parts.map(x => {
-            const hex = parseInt(x).toString(16);
-            return hex.length === 1 ? "0" + hex : hex;
-        }).join("").toUpperCase();
-    }
-
-    return "#" + [rgb.r, rgb.g, rgb.b].map(value => {
-        const hex = value.toString(16);
-        return hex.length === 1 ? "0" + hex : hex;
-    }).join("").toUpperCase();
-}
-
-function downloadPattern() {
-    if (!sourceCanvas) return;
-    const link = document.createElement('a');
-    link.download = 'meshup-pattern.png';
-    link.href = canvas.toDataURL();
-    link.click();
-}
-
-// ========== Background Color Change ==========
-function applyBackgroundColorChange() {
-    if (!sourceCanvas) return;
-    
-    const newColorHex = bgColorPicker.value;
-    const newRGB = hexToRgb(newColorHex);
-    
-    const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-    const data = imageData.data;
-    
-    // Find the most common color (likely the background)
-    const colorFreq = new Map();
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
-        
-        if (a === 0) continue;
-        
-        const key = `${r},${g},${b}`;
-        colorFreq.set(key, (colorFreq.get(key) || 0) + 1);
-    }
-    
-    if (colorFreq.size === 0) return;
-    
-    // Get the most common color
-    const mostCommonColor = Array.from(colorFreq.entries())
-        .sort((a, b) => b[1] - a[1])[0][0];
-    const [oldR, oldG, oldB] = mostCommonColor.split(',').map(Number);
-    
-    // Replace old background with new color (with threshold for similar colors)
-    const colorThreshold = 30;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        
-        const dr = r - oldR;
-        const dg = g - oldG;
-        const db = b - oldB;
-        const distance = Math.sqrt(dr * dr + dg * dg + db * db);
-        
-        if (distance < colorThreshold) {
-            data[i] = newRGB.r;
-            data[i + 1] = newRGB.g;
-            data[i + 2] = newRGB.b;
-        }
-    }
-    
-    sourceCtx.putImageData(imageData, 0, 0);
-    updateProject();
-}
-
-function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-    } : { r: 255, g: 255, b: 255 };
-}
-
-// ========== Eraser Tool ==========
 function toggleEraserMode() {
     if (!sourceCanvas) return;
     setSidebarMenu('image');
+
     eraserMode = !eraserMode;
     eraserBtn.classList.toggle('active', eraserMode);
     canvas.style.cursor = eraserMode ? 'crosshair' : 'default';
-    
+
     if (eraserMode) {
         eraserStatus.textContent = 'Click and drag to erase areas from the image.';
         bgRemovalMode = false;
@@ -720,7 +1037,6 @@ function handleEraserSizeChange() {
 
 function handleEraserPreview(event) {
     if (!eraserMode || !sourceCanvas) return;
-
     updateEraserCursor(event);
 }
 
@@ -738,34 +1054,32 @@ function eraseOnCanvas(event) {
     if (!eraserMode || !sourceCanvas || !sourceCtx || !isErasing) return;
 
     updateEraserCursor(event);
-    
+
     const sourcePoint = mapCanvasToSourcePoint(event);
     if (!sourcePoint) return;
-    
+
     const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
     const data = imageData.data;
     const width = sourceCanvas.width;
-    
+
     const x = sourcePoint.x;
     const y = sourcePoint.y;
     const radius = eraserBrushSize / 2;
-    
-    // Paint eraser brush - make pixels transparent in a circular brush
-    for (let py = Math.max(0, y - eraserBrushSize); py < Math.min(sourceCanvas.height, y + eraserBrushSize); py++) {
-        for (let px = Math.max(0, x - eraserBrushSize); px < Math.min(sourceCanvas.width, x + eraserBrushSize); px++) {
+
+    for (let py = Math.max(0, y - eraserBrushSize); py < Math.min(sourceCanvas.height, y + eraserBrushSize); py += 1) {
+        for (let px = Math.max(0, x - eraserBrushSize); px < Math.min(sourceCanvas.width, x + eraserBrushSize); px += 1) {
             const dx = px - x;
             const dy = py - y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            
+
             if (dist < radius) {
                 const idx = (py * width + px) * 4;
-                // Soft edge with falloff
-                const alpha = Math.max(0, 255 * (1 - (dist / radius)));
-                data[idx + 3] = Math.max(0, data[idx + 3] - alpha);
+                const alphaDrop = Math.max(0, 255 * (1 - dist / radius));
+                data[idx + 3] = Math.max(0, data[idx + 3] - alphaDrop);
             }
         }
     }
-    
+
     sourceCtx.putImageData(imageData, 0, 0);
     updateProject();
 }
