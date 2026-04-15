@@ -75,6 +75,67 @@ const GRID_SYMBOLS = [
     '31', '32'
 ];
 
+// Curated DMC subset for practical nearest-thread mapping.
+const DMC_THREADS = [
+    { code: 'B5200', name: 'Snow White', r: 255, g: 255, b: 255 },
+    { code: '310', name: 'Black', r: 0, g: 0, b: 0 },
+    { code: '318', name: 'Steel Gray Lt', r: 171, g: 171, b: 171 },
+    { code: '414', name: 'Steel Gray Dk', r: 98, g: 93, b: 87 },
+    { code: '415', name: 'Pearl Gray', r: 211, g: 211, b: 214 },
+    { code: '436', name: 'Tan', r: 203, g: 144, b: 81 },
+    { code: '437', name: 'Tan Lt', r: 228, g: 187, b: 142 },
+    { code: '445', name: 'Lemon Lt', r: 255, g: 251, b: 139 },
+    { code: '470', name: 'Avocado Lt', r: 148, g: 171, b: 79 },
+    { code: '471', name: 'Avocado Grn Very Lt', r: 174, g: 191, b: 121 },
+    { code: '498', name: 'Red Dk', r: 167, g: 19, b: 43 },
+    { code: '550', name: 'Violet Very Dk', r: 92, g: 24, b: 78 },
+    { code: '552', name: 'Violet Med', r: 154, g: 91, b: 154 },
+    { code: '597', name: 'Turquoise', r: 91, g: 163, b: 179 },
+    { code: '598', name: 'Turquoise Lt', r: 144, g: 195, b: 204 },
+    { code: '606', name: 'Orange-Red Br', r: 250, g: 50, b: 3 },
+    { code: '666', name: 'Red Br', r: 227, g: 29, b: 66 },
+    { code: '699', name: 'Green', r: 5, g: 101, b: 23 },
+    { code: '700', name: 'Green Br', r: 7, g: 115, b: 27 },
+    { code: '703', name: 'Chartreuse', r: 123, g: 181, b: 71 },
+    { code: '720', name: 'Orange Spice Dk', r: 229, g: 92, b: 31 },
+    { code: '741', name: 'Tangerine Med', r: 255, g: 163, b: 43 },
+    { code: '742', name: 'Tangerine Lt', r: 255, g: 191, b: 87 },
+    { code: '762', name: 'Pearl Gray Very Lt', r: 236, g: 236, b: 236 },
+    { code: '775', name: 'Baby Blue Very Lt', r: 183, g: 225, b: 227 },
+    { code: '796', name: 'Royal Blue Dk', r: 17, g: 65, b: 109 },
+    { code: '797', name: 'Royal Blue', r: 19, g: 71, b: 125 },
+    { code: '798', name: 'Delft Blue Dk', r: 70, g: 106, b: 142 },
+    { code: '820', name: 'Royal Blue Very Dk', r: 14, g: 54, b: 92 },
+    { code: '838', name: 'Beige Brown Very Dk', r: 89, g: 73, b: 55 },
+    { code: '840', name: 'Beige Brown Med', r: 154, g: 124, b: 92 },
+    { code: '898', name: 'Coffee Brown Very Dk', r: 73, g: 42, b: 19 },
+    { code: '905', name: 'Parrot Green Dk', r: 98, g: 148, b: 41 },
+    { code: '906', name: 'Parrot Green Med', r: 127, g: 179, b: 53 },
+    { code: '917', name: 'Plum Med', r: 171, g: 68, b: 113 },
+    { code: '919', name: 'Red-Copper', r: 166, g: 69, b: 16 },
+    { code: '938', name: 'Coffee Brown Ult Dk', r: 54, g: 31, b: 14 },
+    { code: '945', name: 'Tawny', r: 251, g: 213, b: 187 },
+    { code: '947', name: 'Burnt Orange', r: 255, g: 123, b: 77 },
+    { code: '995', name: 'Electric Blue Dk', r: 38, g: 150, b: 182 },
+    { code: '3011', name: 'Khaki Green Dk', r: 124, g: 146, b: 113 },
+    { code: '3012', name: 'Khaki Green Med', r: 166, g: 189, b: 155 },
+    { code: '3325', name: 'Baby Blue Lt', r: 184, g: 210, b: 230 },
+    { code: '3341', name: 'Apricot', r: 252, g: 171, b: 152 },
+    { code: '3345', name: 'Hunter Green Dk', r: 27, g: 89, b: 21 },
+    { code: '3347', name: 'Yellow Green Med', r: 113, g: 147, b: 92 },
+    { code: '3371', name: 'Black Brown', r: 30, g: 17, b: 8 },
+    { code: '3607', name: 'Plum Lt', r: 197, g: 73, b: 137 },
+    { code: '3608', name: 'Plum Very Lt', r: 234, g: 156, b: 196 },
+    { code: '3689', name: 'Mauve Lt', r: 251, g: 191, b: 194 },
+    { code: '3706', name: 'Melon Med', r: 255, g: 173, b: 156 },
+    { code: '3712', name: 'Salmon Med', r: 241, g: 135, b: 135 },
+    { code: '3760', name: 'Wedgewood Med', r: 62, g: 133, b: 162 },
+    { code: '3799', name: 'Pewter Gray Very Dk', r: 66, g: 66, b: 66 },
+    { code: '3811', name: 'Turquoise Very Lt', r: 188, g: 227, b: 230 },
+    { code: '3844', name: 'Bright Turquoise Dk', r: 18, g: 174, b: 186 },
+    { code: '3865', name: 'Winter White', r: 249, g: 247, b: 241 }
+];
+
 // Initialize
 imageInput.addEventListener('change', handleImageUpload);
 patternMenuBtn.addEventListener('click', () => setSidebarMenu('pattern'));
@@ -300,7 +361,10 @@ function renderPattern(sw, sh, maxColors, sharpness, meshCount, physWidth, physH
         drawRemovalPreviewOverlay(sw, sh, scale);
     }
 
-    generatePalette(quantized.palette);
+    const stitchCounts = countStitchesByPalette(quantized.indexMap, quantized.palette.length);
+    const threadMap = mapPaletteToThreads(quantized.palette);
+
+    generatePalette(quantized.palette, threadMap, stitchCounts);
 
     lastPattern = {
         sw,
@@ -309,6 +373,8 @@ function renderPattern(sw, sh, maxColors, sharpness, meshCount, physWidth, physH
         physWidth,
         physHeight,
         palette: quantized.palette,
+        threadMap,
+        stitchCounts,
         indexMap: quantized.indexMap,
         stitchWidth: sw,
         stitchHeight: sh
@@ -395,7 +461,7 @@ function quantizeKMeans(imageData, maxColors) {
         };
     }
 
-    const k = Math.max(2, Math.min(maxColors, opaqueIdx.length));
+    const k = Math.max(2, Math.min(maxColors, 20, opaqueIdx.length));
     const centroids = initializeCentroids(pixels, opaqueIdx, k);
     const assignments = new Int16Array(total).fill(-1);
 
@@ -438,7 +504,23 @@ function quantizeKMeans(imageData, maxColors) {
         }
     }
 
+    const counts = Array.from({ length: k }, () => 0);
+    for (let i = 0; i < opaqueIdx.length; i += 1) {
+        const assigned = assignments[opaqueIdx[i]];
+        if (assigned >= 0) counts[assigned] += 1;
+    }
+
+    const remap = new Int16Array(k).fill(-1);
+    const compactPalette = [];
+    for (let i = 0; i < k; i += 1) {
+        if (counts[i] > 0) {
+            remap[i] = compactPalette.length;
+            compactPalette.push({ r: centroids[i].r, g: centroids[i].g, b: centroids[i].b });
+        }
+    }
+
     const out = new Uint8ClampedArray(pixels.length);
+    const compactAssignments = new Int16Array(total).fill(-1);
     for (let i = 0; i < total; i += 1) {
         const srcPos = i * 4;
         if (pixels[srcPos + 3] === 0 || assignments[i] < 0) {
@@ -449,18 +531,26 @@ function quantizeKMeans(imageData, maxColors) {
             continue;
         }
 
-        const c = centroids[assignments[i]];
+        const mappedIdx = remap[assignments[i]];
+        if (mappedIdx < 0) {
+            out[srcPos] = 0;
+            out[srcPos + 1] = 0;
+            out[srcPos + 2] = 0;
+            out[srcPos + 3] = 0;
+            continue;
+        }
+
+        compactAssignments[i] = mappedIdx;
+        const c = compactPalette[mappedIdx];
         out[srcPos] = c.r;
         out[srcPos + 1] = c.g;
         out[srcPos + 2] = c.b;
         out[srcPos + 3] = 255;
     }
 
-    const palette = centroids.map((c) => ({ r: c.r, g: c.g, b: c.b }));
-
     return {
-        palette,
-        indexMap: assignments,
+        palette: compactPalette,
+        indexMap: compactAssignments,
         imageData: new ImageData(out, width, height)
     };
 }
@@ -530,7 +620,39 @@ function drawGrid(sw, sh, scale, contrastValue) {
     }
 }
 
-function generatePalette(palette) {
+function countStitchesByPalette(indexMap, paletteSize) {
+    const counts = Array.from({ length: paletteSize }, () => 0);
+    for (let i = 0; i < indexMap.length; i += 1) {
+        const idx = indexMap[i];
+        if (idx >= 0) counts[idx] += 1;
+    }
+    return counts;
+}
+
+function mapPaletteToThreads(palette) {
+    return palette.map((color) => getNearestThread(color));
+}
+
+function getNearestThread(color) {
+    let best = DMC_THREADS[0];
+    let bestDistance = Number.MAX_VALUE;
+
+    for (let i = 0; i < DMC_THREADS.length; i += 1) {
+        const thread = DMC_THREADS[i];
+        const dr = color.r - thread.r;
+        const dg = color.g - thread.g;
+        const db = color.b - thread.b;
+        const distance = dr * dr + dg * dg + db * db;
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = thread;
+        }
+    }
+
+    return best;
+}
+
+function generatePalette(palette, threadMap, stitchCounts) {
     paletteGrid.innerHTML = '';
 
     palette.forEach((color, i) => {
@@ -543,7 +665,10 @@ function generatePalette(palette) {
 
         const hex = document.createElement('span');
         hex.className = 'chip-hex';
-        hex.textContent = `${i + 1}: ${rgbToHex(color)}`;
+        const thread = threadMap?.[i];
+        const count = stitchCounts?.[i] || 0;
+        const threadLabel = thread ? `DMC ${thread.code} ${thread.name}` : 'No thread match';
+        hex.textContent = `${i + 1} | ${rgbToHex(color)} | ${threadLabel} | ${count} st`;
 
         chip.appendChild(swatch);
         chip.appendChild(hex);
@@ -566,7 +691,7 @@ function rgbToHex(rgb) {
 function exportPrintablePatternSheet() {
     if (!lastPattern || !lastPattern.palette.length) return;
 
-    const { sw, sh, palette, indexMap, meshCount, physWidth, physHeight } = lastPattern;
+    const { sw, sh, palette, threadMap, stitchCounts, indexMap, meshCount, physWidth, physHeight } = lastPattern;
 
     const keyRows = palette.length;
     const pageWidth = Math.max(1200, sw * 16 + 420);
@@ -653,23 +778,74 @@ function exportPrintablePatternSheet() {
     outCtx.font = 'bold 20px sans-serif';
     outCtx.fillText('Numbered Color Key', keyX, keyY - 12);
 
-    outCtx.font = '16px sans-serif';
+    outCtx.font = '15px sans-serif';
+    const keyTextMaxWidth = Math.max(190, pageWidth - (keyX + 34) - 24);
+    let rowY = keyY;
+
     for (let i = 0; i < palette.length; i += 1) {
         const color = palette[i];
+        const thread = threadMap?.[i];
+        const stitches = stitchCounts?.[i] || 0;
+
         outCtx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-        outCtx.fillRect(keyX, keyY + i * 30, 24, 20);
+        outCtx.fillRect(keyX, rowY, 24, 20);
         outCtx.strokeStyle = 'rgba(0,0,0,0.25)';
-        outCtx.strokeRect(keyX, keyY + i * 30, 24, 20);
+        outCtx.strokeRect(keyX, rowY, 24, 20);
 
         outCtx.fillStyle = '#111827';
         const symbol = GRID_SYMBOLS[i] || String(i + 1);
-        outCtx.fillText(`${symbol}  ${rgbToHex(color)}`, keyX + 34, keyY + i * 30 + 16);
+        const threadText = thread ? `DMC ${thread.code} ${thread.name}` : 'No match';
+        const lineText = `${symbol}  ${rgbToHex(color)}  ${threadText}  (${stitches} st)`;
+        const lines = wrapTextLines(outCtx, lineText, keyTextMaxWidth);
+        const baseY = rowY + 15;
+        for (let l = 0; l < lines.length; l += 1) {
+            outCtx.fillText(lines[l], keyX + 34, baseY + l * 16);
+        }
+
+        rowY += Math.max(30, lines.length * 16 + 8);
     }
 
     const link = document.createElement('a');
     link.download = 'meshup-printable-pattern.png';
     link.href = outCanvas.toDataURL('image/png');
     link.click();
+}
+
+function wrapTextLines(ctxRef, text, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+
+    for (let i = 0; i < words.length; i += 1) {
+        const candidate = current ? `${current} ${words[i]}` : words[i];
+        if (ctxRef.measureText(candidate).width <= maxWidth) {
+            current = candidate;
+            continue;
+        }
+
+        if (current) {
+            lines.push(current);
+            current = words[i];
+            continue;
+        }
+
+        // Single token exceeds width: split token greedily.
+        let token = words[i];
+        let part = '';
+        for (let j = 0; j < token.length; j += 1) {
+            const nextPart = part + token[j];
+            if (ctxRef.measureText(nextPart).width > maxWidth && part) {
+                lines.push(part);
+                part = token[j];
+            } else {
+                part = nextPart;
+            }
+        }
+        current = part;
+    }
+
+    if (current) lines.push(current);
+    return lines;
 }
 
 function handleThresholdChange() {

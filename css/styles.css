@@ -356,7 +356,7 @@ canvas {
 }
 
 .palette-area {
-    height: 180px;
+    min-height: 140px;
     margin-top: 2rem;
     border-top: 1px solid var(--border);
     padding-top: 1.5rem;
@@ -369,30 +369,34 @@ canvas {
 }
 
 .palette-grid {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    overflow-y: auto;
-    max-height: 120px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.55rem 0.75rem;
+    overflow: visible;
+    max-height: none;
 }
 
 .color-chip {
-    width: 60px;
+    width: 100%;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.15rem 0;
 }
 
 .chip-swatch {
-    width: 100%;
-    height: 30px;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
     border-radius: 4px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: none;
 }
 
 .chip-hex {
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     color: var(--text-dim);
     font-family: monospace;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
 }
