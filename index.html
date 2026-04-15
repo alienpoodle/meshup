@@ -5,73 +5,149 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MeshUp | Image to Plastic Canvas</title>
     <link rel="stylesheet" href="css/styles.css">
-    <!-- Lucide Icons for a professional look -->
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <!-- Cache bust and prevent module issues -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let reg of registrations) reg.unregister();
+            });
+        }
+    </script>
+
     <div class="app-container">
         <!-- Sidebar Controls -->
         <aside class="sidebar">
             <div class="logo">
-                <i data-lucide="grid-3x3"></i>
+                <span>⊞</span>
                 <h1>Mesh<span>Up</span></h1>
             </div>
 
-            <section class="control-group">
-                <h3><i data-lucide="upload"></i> Source Image</h3>
-                <div class="upload-area" id="drop-zone">
-                    <input type="file" id="image-input" accept="image/*" hidden>
-                    <label for="image-input" class="upload-label">
-                        <i data-lucide="image-plus"></i>
-                        <span>Click to upload</span>
-                    </label>
-                </div>
-            </section>
+            <div class="menu-switcher" role="tablist" aria-label="Sidebar Menu">
+                <button id="menu-pattern-btn" class="menu-tab active" type="button" role="tab" aria-selected="true">Pattern</button>
+                <button id="menu-image-btn" class="menu-tab" type="button" role="tab" aria-selected="false">Image Edit</button>
+            </div>
 
-            <section class="control-group">
-                <h3><i data-lucide="settings-2"></i> Grid Settings</h3>
-                
-                <div class="setting">
-                    <div class="label-row">
-                        <label>Stitch Width</label>
-                        <span id="width-val">50</span>
-                    </div>
-                    <input type="range" id="grid-size" min="10" max="150" value="50">
+            <div class="sidebar-menus">
+                <div id="pattern-menu" class="sidebar-menu active" role="tabpanel">
+                    <section class="control-group">
+                        <h3><span>⬆️</span> Source Image</h3>
+                        <div class="upload-area" id="drop-zone">
+                            <input type="file" id="image-input" accept="image/*" hidden>
+                            <label for="image-input" class="upload-label">
+                                <span>🖼️</span>
+                                <span>Click to upload</span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="control-group">
+                        <h3><span>⚙️</span> Grid Settings</h3>
+
+                        <div class="setting">
+                            <div class="label-row">
+                                <label>Stitch Width</label>
+                                <span id="width-val">50</span>
+                            </div>
+                            <input type="range" id="grid-size" min="10" max="150" value="50">
+                        </div>
+
+                        <div class="setting">
+                            <div class="label-row">
+                                <label>Yarn Colors</label>
+                                <span id="color-limit-val">12</span>
+                            </div>
+                            <input type="range" id="color-limit" min="2" max="24" value="12">
+                            <p class="helper-text">Lower color counts make cross stitching faster and simpler.</p>
+                        </div>
+
+                        <div class="setting">
+                            <label>Mesh Count (Holes Per Inch)</label>
+                            <select id="mesh-type">
+                                <option value="7">7 Count (Standard)</option>
+                                <option value="10">10 Count (Fine)</option>
+                                <option value="14">14 Count (Ultra Fine)</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section class="control-group stats-panel">
+                        <h3><span>ℹ️</span> Project Specs</h3>
+                        <div class="stat-item">
+                            <span>Stitch Count:</span>
+                            <strong id="stat-stitches">50 x 50</strong>
+                        </div>
+                        <div class="stat-item">
+                            <span>Physical Size:</span>
+                            <strong id="stat-inches">7.1" x 7.1"</strong>
+                        </div>
+                    </section>
                 </div>
 
-                <div class="setting">
-                    <div class="label-row">
-                        <label>Yarn Colors</label>
-                        <span id="color-limit-val">12</span>
-                    </div>
-                    <input type="range" id="color-limit" min="2" max="24" value="12">
-                    <p class="helper-text">Lower color counts make cross stitching faster and simpler.</p>
-                </div>
+                <div id="image-edit-menu" class="sidebar-menu" role="tabpanel" aria-hidden="true">
+                    <section class="control-group">
+                        <h3><span>🧭</span> Orientation</h3>
+                        <div class="orientation-grid">
+                            <button id="rotate-left-btn" class="secondary-btn" type="button"><span>↺</span> Rotate Left</button>
+                            <button id="rotate-right-btn" class="secondary-btn" type="button"><span>↻</span> Rotate Right</button>
+                            <button id="flip-horizontal-btn" class="secondary-btn" type="button"><span>↔</span> Flip Horiz</button>
+                            <button id="flip-vertical-btn" class="secondary-btn" type="button"><span>↕</span> Flip Vert</button>
+                        </div>
+                        <button id="reset-image-btn" class="secondary-btn tool-block-btn" type="button"><span>⟲</span> Reset Image</button>
+                    </section>
 
-                <div class="setting">
-                    <label>Mesh Count (Holes Per Inch)</label>
-                    <select id="mesh-type">
-                        <option value="7">7 Count (Standard)</option>
-                        <option value="10">10 Count (Fine)</option>
-                        <option value="14">14 Count (Ultra Fine)</option>
-                    </select>
-                </div>
-            </section>
+                    <section class="control-group">
+                        <h3><span>✨</span> Background Removal</h3>
+                        <button id="remove-bg-btn" class="secondary-btn" type="button">
+                            <span>🔍</span> Select Background
+                        </button>
+                        <p id="bg-status" class="helper-text">Enable selection mode, hover to preview, then click to confirm.</p>
 
-            <section class="control-group stats-panel">
-                <h3><i data-lucide="info"></i> Project Specs</h3>
-                <div class="stat-item">
-                    <span>Stitch Count:</span>
-                    <strong id="stat-stitches">50 x 50</strong>
+                        <div class="setting bg-threshold-wrap">
+                            <div class="label-row">
+                                <label for="bg-threshold">Sensitivity</label>
+                                <span id="bg-threshold-val">40</span>
+                            </div>
+                            <input type="range" id="bg-threshold" min="8" max="120" value="40">
+                        </div>
+                    </section>
+
+                    <section class="control-group">
+                        <h3><span>🎯</span> Background Color</h3>
+                        <div class="setting">
+                            <div class="label-row">
+                                <label for="bg-color-picker">Replace With Color</label>
+                            </div>
+                            <div class="tool-inline-row">
+                                <input type="color" id="bg-color-picker" value="#ffffff">
+                                <button id="apply-bg-color-btn" class="secondary-btn tool-grow-btn" type="button">
+                                    <span>✓</span> Apply Color
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="control-group">
+                        <h3><span>🖌️</span> Eraser Tool</h3>
+                        <button id="eraser-btn" class="secondary-btn" type="button">
+                            <span>🗑️</span> Eraser
+                        </button>
+                        <p id="eraser-status" class="helper-text">Click and drag to erase areas from the image manually.</p>
+
+                        <div class="setting eraser-size-wrap">
+                            <div class="label-row">
+                                <label for="eraser-size">Brush Size</label>
+                                <span id="eraser-size-val">20</span>px
+                            </div>
+                            <input type="range" id="eraser-size" min="5" max="100" value="20">
+                        </div>
+                    </section>
                 </div>
-                <div class="stat-item">
-                    <span>Physical Size:</span>
-                    <strong id="stat-inches">7.1" x 7.1"</strong>
-                </div>
-            </section>
+            </div>
 
             <button id="download-btn" class="primary-btn">
-                <i data-lucide="download"></i> Export Pattern
+                <span>⬇️</span> Export Pattern
             </button>
         </aside>
 
@@ -79,15 +155,16 @@
         <main class="workspace">
             <div class="canvas-container" id="canvas-wrapper">
                 <canvas id="display-canvas"></canvas>
+                <div id="eraser-cursor" class="eraser-cursor" aria-hidden="true"></div>
                 <div id="empty-state" class="empty-state">
-                    <i data-lucide="mouse-pointer-2"></i>
+                    <span>🖱️</span>
                     <p>Upload an image to generate your stitching grid</p>
                 </div>
             </div>
 
             <section class="palette-area">
                 <div class="palette-header">
-                    <h3><i data-lucide="palette"></i> Yarn Palette</h3>
+                    <h3><span>🎨</span> Yarn Palette</h3>
                     <span id="color-count">0 colors detected</span>
                 </div>
                 <div class="palette-grid" id="color-palette">
@@ -99,8 +176,10 @@
 
     <script src="js/app.js"></script>
     <script>
-        // Initialize Lucide Icons
-        lucide.createIcons();
+        // Error handler for debugging
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.message, e.filename, e.lineno, e.colno);
+        });
     </script>
 </body>
 </html>
